@@ -1,0 +1,3 @@
+[submodule "PySide2Widgets"]
+	path = PySide2Widgets
+	url = https://github.com/taylorbenwright/PySide2Widgets.git

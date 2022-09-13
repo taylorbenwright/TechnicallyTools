@@ -1,0 +1,240 @@
+# mGear Module Creation Guide
+3/31/2021 - TBWright - v1.0
+
+## Overview
+
+This will be a guide to creating mGear modules from scratch. It will attempt to chronicle the process is order, but the
+mGear system is pretty complex so there may be missing steps. If there is, please send me an email at tbwrightartist@gmail.com 
+and I will edit this guide to be more correct.
+
+## Process
+
+My general process so far has been:
+1. Create the module in Maya with raw Control modules. This gives me a general feeling to how the component should be 
+hierarchically laid out.
+2. Create the `guide.py` file. It's easier for me to think about the graphical layout of a component than the mechanics 
+of how it will work at runtime
+3. Create the `__init__.py` file. This is where Shifter after latched on and defines how the module will work after 
+being built.
+
+You'll notice that until we do the `__init__.py` file, Shifter will not correctly use our module. Therefore, I have an 
+iterative approach to making a module. Get the barest minimum Guide and init so I can create the module, and then 
+iterate until it is all correct.
+
+NOTE: You can either use QtCreator or raw PySide2 to create the Component panel widget. I always do the latter and this
+guide WILL NOT go over how to use the former. I don't like QtCreator so I never use it.
+
+### Guide
+#### Overview
+The `guide.py` file defines how the guide rig will be created, and defines the params that will be visible to the user
+at creation time.
+
+There are three classes needed in the `guide.py` file:
+1. Guide class, inheriting from `mgear.shifter.component.guide.ComponentGuide`.
+    1. `class Guide(guide.ComponentGuide):...`
+    2. Defines how the actual guide is created, as well as what transformations need to be saved for the rig, and what
+    params are make visible to the rig
+2. settingsTab class, inheriting from `QtWidgets.QDialog`.
+    1. Defines the actual layout of the Component Settings tab in the UI.
+3. componentSettings class, inheriting from `MayaQWidgetDockableMixin` and `mgear.shifter.component.guide.componentMainSettings`.
+    1. `class componentSettings(MayaQWidgetDockableMixin, guide.componentMainSettings):...`
+    2. Defines how the above settingsTab is used. Hooks up slots and signals to set params.
+
+I will go over each of these classes in turn.
+#### Guide class
+##### Class Attrs
+The Guide class has a few necessary class attrs: 
+```python
+compType = 'moduletypename'
+compName = 'modulename'
+description = 'description of the module that appears in the Guide Manager'
+author = 'Your name!'
+url = 'Your URL!'
+email = 'Your email!'
+version = [1, 0, 0]
+```
+These values are typically defined in the global scope of the guide file, but they can be inlined here.
+
+##### Methods
+###### postInit
+First, we need the `postInit` method. This is called immediately after the Guide class is initialized and is primarily 
+used for adding string names to be saved so that we can later use those transforms in the rig. These will likely be the 
+locators that the user manipulated to match their mesh.
+```python
+def postInit(self):
+    self.save_transform = ['root', 'mid', 'top']
+```
+###### addObjects
+This is where we actually create our locators and curves that the user will manipulate. Class methods to use here
+include: addRoot(), addLoc(), and addDispCurve().
+
+I think addRoot() has to been called, but I'm not totally sure.
+
+```python
+self.root = self.addRoot()
+self.grip = self.addLoc('grip', self.root, transform.getOffsetPosition(self.root, [0, 0, 0]))
+```
+addLoc will set a name for the new locator (this must be the same name as in the `postInit` `save_transform` list)
+###### addParameters
+This is where we add the parameters that the user will manipulate in the Components Settings panel. These params are
+then used in the construction of the rig, ie. add joints, IK references, etc.
+
+The `addParameters` method is what we will use here. By taking a name, datatype, and initial value, we can then drive 
+these parameters with the UI, and use these params to build the rig.
+```python
+self.top_ikref_array = self.addParam('top_ikref_array', 'string', '')
+self.top_joint = self.addParam('top_joint', 'bool', False)
+self.top_RotOrder = self.addParam("top_rotorder", "long", 0, 0, 5)
+```
+
+###### postDraw
+This is where we do any aesthetic things we need to to the rig, ie. changing locator colors, changing sizes, etc. 
+There's no particular methods we need here, this is all just cmds and pm stuff.
+
+#### settingsTab class
+The settingsTab class decribes the physical appearance of the Component Settings tab for this module. We don't do any
+slot/signal hookup here, we only do layout. 
+
+I'm not going to go over how to do Qt design. However, a few tips:
+1. The settingTab class must inherit from QDialog.
+2. Do not call `show()` here. That will be called later when the main window invokes the tab.
+3. All you need here in an `__init__` method, but I suppose you could do more flashy stuff if you wanted. Go nuts.
+
+#### componentSettings class
+The componentSettings class is what connects the above settings tab to the guide object itself. This class is a whopper, so buckle up.
+There are six method used here, though none of them are required. You could do all of this in the `__init__` method.
+
+###### init
+We need to do a few things in the `__init__` method: 
+```python
+self.toolName = TYPE
+pyqt.deleteInstances(self, MayaQDockWidget)
+super(self.__class__, self).__init__(parent=parent)
+self.settingsTab = settingsTab()
+```
+This removes previous instances of this dialog, and then instantiates the settingsTab we made above.
+
+###### setup_componentSettingsWindow
+Sets the base params for the settings tab. 
+```python
+self.mayaMainWindow = pyqt.maya_main_window()
+self.setObjectName(self.toolName)
+self.setWindowFlags(QtCore.Qt.Window)
+self.setWindowTitle(TYPE)
+self.resize(280, 520)
+```
+Note the window size here! 280 x 520 is the size of this dialog.
+
+###### create_componentControls
+I have no idea what this method is for. It's not used in the entire codebase but is stubbed in everywhere.
+
+###### populate_componentControls
+This is where we set our QWidgets based on the settings saved on the root node of the guide module in the scene.
+```python
+self.tabs.insertTab(1, self.settingsTab, "Component Settings")
+self.populateCheck(self.settingsTab.top_joint_chx, "top_joint")
+self.settingsTab.top_ro_cmb.setCurrentIndex(self.root.attr("top_rotorder").get())
+```
+
+###### create_componentLayout
+Lays out the layout for the widget that the tabs are set into, as well as the close button. This is pretty standard.
+```python
+self.settings_layout = QtWidgets.QVBoxLayout()
+self.settings_layout.addWidget(self.tabs)
+self.settings_layout.addWidget(self.close_button)
+self.setLayout(self.settings_layout)
+```
+
+###### create_componentConnections
+This is where we hook up our QWidgets to the attrs on our root node. I won't go over this, as it's all Qt slot/signal 
+stuff. I extensively use `partial` to hook the signals up to methods.
+```python
+self.settingsTab.grip_ro_cmb.currentIndexChanged.connect(
+    partial(self.updateComboBox,
+            self.settingsTab.grip_ro_cmb,
+            "grip_rotorder"))
+```
+### `__init__`
+The `__init__` file defines how the runtime rig is constructed and operates. We draw information (transforms, attrs) 
+from the Guide and build a rig from all that data. There are a lot of hidden parameters and methods here, I will try to
+go over the ones I use.
+
+#### Component class
+This is the only class in this file. 
+WE DO NOT implement the `__init__` for the Component. We let the base class do that. 
+There are five methods I implement:
+1. addObjects
+    1. This is where we create all of our rig objects, ie. transforms, controllers, joints, etc.
+2. addAttributes
+    1. This is where we create all the attrs that will be stored on the Host node and can be interacted with by the 
+    user
+3. setRelation
+    1. This is where we set the relationship between guide, rig, and skeleton. It's pretty difficult to determine what
+    some of this does so I will do my best.
+4. addConnection
+    1. This is where we set up the connection between this component and the outside world. It works weird though.
+    
+###### addObjects
+We add all of our objects the rig will need here. This includes transforms, controllers, joints, stuff like that. This
+does NOT include solvers or constraints.
+A few of the methods I regularly use:
+1. `primitive.addTransform()`
+    1. Adds an empty transform with the specified parent, name, and transformation, queried from the Guide.
+2. `self.addCtl()`
+    1. Creates a controller shape with the specified parent, name, etc. There are a lot of shapes to choose from here so
+    just check out the control_01 component to get a sense of all of them.
+3. `self.jnt_pos.append`
+    1. The `jnt_pos` array is a collection of dictionaries that describe how the joints should be created and how they
+    should be parented. As an example:
+        1. 
+        ```python
+        self.jnt_pos.append([self.grip_ctl, 'grip', None, True])
+        self.jnt_pos.append([self.arm_top, 'arm_top', 'grip', True])
+        self.jnt_pos.append([self.top, 'top', 'arm_top', True])
+        self.jnt_pos.append([self.arm_bottom, 'arm_bottom', 'grip', True])
+        self.jnt_pos.append([self.bottom, 'bottom', 'arm_bottom', True])
+        self.jnt_pos.append([self.bowstring_ctl, 'bowstring', 'grip', True])
+        self.jnt_pos.append([self.arrow_ctl, 'arrow', 'parent_relative_jnt', True])
+        ```
+       2. This creates 7 joints and parents them according to their given names, as the given transforms. 
+       3. `parent_relative_jnt` means it will parent this joint to the component's top joint's parent.
+
+###### addAttributes
+We add our attributes here. As far as I know this DOES NOT actually hook up the attrs, it just creates/initializes them.
+```python
+grip_ref_names = self.get_valid_alias_list(self.settings["grip_ikref_array"].split(","))
+if len(grip_ref_names) > 1:
+    self.grip_ikref_att = self.addAnimEnumParam("gripikref", "Grip Ik Ref", 0, grip_ref_names)
+```
+
+NOTE: Enum Attributes CANNOT have underscores in them. So notice the attr above it `gripikref` and not `grip_ik_ref`. THIS IS
+REQUIRED BY THE SYSTEM.
+
+###### addOperators
+This is the big one! This is where we actually build our Component's functionality. There's not much to write here, 
+honestly. It's all just cmds/OpenMaya. The source code extensively uses PyMel but PyMel is slow and likely to be 
+deprecated eventually so I never use it.
+
+###### setRelations
+This is where we tell the system how the rig and guide relate for the purposes of hooking everything up. There are a few
+dictionaries that we need to append:
+1. `self.relative[]`
+    1. 
+
+###### addConnection
+This is where we add if this Component can connect to another component. For instance, is it an arm that can connect to
+a shoulder? I haven't fully explored this yet as I haven't had a need for it yet but it seems pretty powerful. You give 
+a bound method as the value to the `self.connections` dictionary and then when the Component is built with that 
+connection key selected it will call the function to finish the building process.
+
+A few methods of use here:
+1. `self.parent.addChild(self.root)`
+    1. This parents this component to the parent component.
+2. `connectRef()`/`connectRef2()`
+    1. This is what will connect up space constraints on your objects. A few notes here:
+        1. Use `connectRef()` ONLY when there is only a single space constraint for the entire component. This requires
+        that you have set the `self.ikref_att` member variable to the `self.addAnimEnumParam()` up in your `addAttributes`
+        section.
+        2. Use `connectRef2()` when you want to have an arbitrary amount of objects have space switching on this
+        component. It essentially functions the same but instead takes in the attribute as an argument and hooks it up
+        to the condition nodes that are created when the Rig is created.

@@ -1,0 +1,15 @@
+{
+  "AminoConfigurations": [
+    {
+      "libraryName": "TGBifrost",
+      "libraryVersion": "0.0.1",
+      "ConfigName": "TGConfiguration",
+      "jsonLibs": [
+        {
+          "path": "JSONS",
+          "files": [ ]
+        }
+      ]
+    }
+  ]
+}
