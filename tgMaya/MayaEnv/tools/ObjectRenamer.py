@@ -53,7 +53,8 @@ class ObjectRenameDialog(BaseDialog.BaseMayaDialog):
         if len(new_names) != len(self._current_selection):
             return
 
-        for cur_name, new_name in reversed(zip(self._current_selection, new_names)):
+        zip_obj = list(zip(self._current_selection, new_names))
+        for cur_name, new_name in reversed(zip_obj):
             cmds.rename(cur_name, new_name)
 
     def add_selection_changed_callback(self):
