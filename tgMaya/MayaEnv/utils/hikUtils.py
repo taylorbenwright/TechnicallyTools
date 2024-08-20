@@ -22,6 +22,33 @@ def read_scripts():
     mel.eval('source "' + MAYA_LOCATION + '/scripts/others/hikDefinitionOperations.mel"')
 
 
+def set_character(character_name):
+    """
+    Sets the Character on the current HIK Character
+    :param character_name: The name of the character to set the Character to
+    :type character_name: str
+    :return: Nothing
+    :rtype: None
+    """
+    mel.eval("HIKCharacterControlsTool;")
+
+    read_scripts()
+
+    all_chars = cmds.optionMenuGrp("hikCharacterList", query=True, itemListLong=True)
+
+    for ind, item in enumerate(all_chars):
+        option_menu = "hikCharacterList|OptionMenu"
+        char = cmds.menuItem(item, query=True, label=True)
+        if char == (' {}'.format(char)):
+            cmds.optionMenu(option_menu, edit=True, select=ind+1)
+            break
+
+    mel.eval('global string $gHIKCurrentCharacter = "{}";'.format(character_name))
+    mel.eval('hikUpdateCurrentSourceFromUI()')
+    mel.eval('hikUpdateContextualUI()')
+    mel.eval('hikControlRigSelectionChangedCallback')
+
+
 def set_source_on_character(character_name, source_name):
     """
     Sets the Source on the current HIK Character
@@ -38,15 +65,13 @@ def set_source_on_character(character_name, source_name):
 
     all_source_chars = cmds.optionMenuGrp("hikSourceList", query=True, itemListLong=True)
 
-    i = 1
-    for item in all_source_chars:
+    for ind, item in enumerate(all_source_chars):
         option_menu = "hikSourceList|OptionMenu"
         source_char = cmds.menuItem(item, query=True, label=True)
 
-        if source_char == (' ' + source_name):
-            cmds.optionMenu(option_menu, edit=True, select=i)
+        if source_char == (' {}'.format(source_name)):
+            cmds.optionMenu(option_menu, edit=True, select=ind+1)
             break
-        i += 1
 
     mel.eval('global string $gHIKCurrentCharacter = "{}";'.format(character_name))
     mel.eval('hikUpdateCurrentSourceFromUI()')

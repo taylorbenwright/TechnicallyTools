@@ -167,7 +167,7 @@ class HIKTransferDialog(MayaQWidgetBaseMixin, QtWidgets.QDialog):
         for ind, ma_file in enumerate(intermediary_files):
             if cancelled:
                 return
-            cmds.file(self.target_line.text(), force=True, options='v=0;', ignoreVersion=True, type='mayaAscii', open=True)
+            cmds.file(self.target_line.text(), force=True, options='v=0;', ignoreVersion=True, type='mayaAscii', open=True, )
 
             print('Referencing and baking animation file: {}'.format(ma_file))
 
@@ -179,6 +179,7 @@ class HIKTransferDialog(MayaQWidgetBaseMixin, QtWidgets.QDialog):
             source_name = ma_file.split('.')[0]
             source_name = source_name + ':' + self.hik_bindpose_name.text()
             source_name = source_name.replace('-', '_')
+            source_name = source_name.replace(' ', '_')
 
             self.reference_animation(full_path)
             self.bake_anim_to_HIK_character(self.target_bindpose_name.text(), source_name)
@@ -190,6 +191,8 @@ class HIKTransferDialog(MayaQWidgetBaseMixin, QtWidgets.QDialog):
             cmds.file(full_path, removeReference=True)
 
             file_name = ma_file.split('.')[0]
+            file_name = file_name.replace('-', '_')
+            file_name = file_name.replace(' ', '_')
             cmds.file(rename=save_path + "/" + file_name + '_' + self.target_bindpose_name.text())
             cmds.file(s=True, typ='mayaAscii', force=True)
 
@@ -206,8 +209,10 @@ class HIKTransferDialog(MayaQWidgetBaseMixin, QtWidgets.QDialog):
 
         file_path, file_name = os.path.split(import_path)
         file_name = file_name.split('.')[0]
+        truncated_name = file_name.replace('-', '_')
+        truncated_name = truncated_name.replace(' ', '_')
         cmds.file(import_path, i=True, type="FBX", ignoreVersion=True, renameAll=True, mergeNamespacesOnClash=False,
-                  namespace=file_name.replace('-', '_'), options="v=0;p=17;f=0", pr=True, importTimeRange="override")
+                  namespace=truncated_name, options="v=0;p=17;f=0", pr=True, importTimeRange="override", groupReference=False)
         cmds.file(rename=save_path + "/" + file_name + ".ma")
         cmds.file(s=True, typ='mayaAscii', force=True)
 
@@ -215,12 +220,27 @@ class HIKTransferDialog(MayaQWidgetBaseMixin, QtWidgets.QDialog):
         file_path, file_name = os.path.split(anim_path)
         file_name = file_name.split('.')[0]
         truncated_name = file_name.replace('-', '_')
+        truncated_name = truncated_name.replace(' ', '_')
+
+        hip_node = ':Hips'
+
+        original_namespaces = set(cmds.namespaceInfo(':', listOnlyNamespaces=True, r=True))
+
         cmds.file(file_path + "/" + file_name + ".ma", r=True, typ='mayaAscii', gl=True,
                   mergeNamespacesOnClash=False, namespace=truncated_name, options='v=0')
-        keyframe_range = cmds.keyframe('{}:Hips'.format(truncated_name), q=True)
-        cmds.playbackOptions(min=int(keyframe_range[0]), max=int(keyframe_range[-1]))
+
+        new_namespaces = set(cmds.namespaceInfo(':', listOnlyNamespaces=True, r=True)).difference(original_namespaces)
+        if len(new_namespaces) != 0:
+            for ns in new_namespaces:
+                contents = cmds.namespaceInfo(":{}".format(ns), listNamespace=True, bn=True)
+                if 'Hips' in contents:
+                    hip_node = '{}:Hips'.format(ns)
+        if cmds.objExists(hip_node):
+            keyframe_range = cmds.keyframe(hip_node, q=True)
+            cmds.playbackOptions(min=int(keyframe_range[0]), max=int(keyframe_range[-1]))
 
     def bake_anim_to_HIK_character(self, target_name, source_name):
+        hik_utils.set_character(target_name)
         hik_utils.set_source_on_character(target_name, source_name)
         hik_utils.bake_current_character()
 
